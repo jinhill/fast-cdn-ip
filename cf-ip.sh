@@ -394,7 +394,6 @@ help()
    printf "$0 [-t] [-n <dns server>] [-r <url>] [-a <ip address list>]\n"
    printf "\t-4/6 Get ipv4 or ipv6;\n"
    printf "\t-p Generate random IP addresses number for ping test;\n"
-   printf "\t-p Generate random IP addresses number for ping test;\n"
    printf "\t-d Set the number of IP addresses for the download test;\n"
    printf "\t-f Set the fastest number of IP addresses returned;\n"
    printf "\t-c Set the post execution command, Internal variable {{FAST_V4_IPS}} & {{FAST_V6_IPS}} can be used;\n"
