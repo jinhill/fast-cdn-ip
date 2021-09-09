@@ -15,4 +15,4 @@ Usage:<br>
 	-r Set url to test download speed;<br>
 	-h Print help.<br>
 <br>
-./cf-ip.sh -4 -p 200 -d 10 -f 1 -c 'echo "update this ip {{FAST_V4_IPS}} to ddns."'<br>
+./cf-ip.sh -p 200 -d 10 -f 1 -c 'echo "update this ipv4: {{FAST_V4_IPS}} ipv6: {{FAST_V6_IPS}} to ddns."'<br>
