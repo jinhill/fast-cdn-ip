@@ -1,6 +1,6 @@
 #! /bin/sh
 #####################################################################
-# Copyright (C) 2020 Jinhill
+# Copyright (C) 2021 Jinhill
 # This file is free software; as a special exception the author gives
 # unlimited permission to copy and/or distribute it, with or without
 # modifications, as long as this notice is preserved.
