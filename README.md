@@ -5,7 +5,6 @@ Usage:<br>
 ./cf-ip.sh [-t] [-n <dns server>] [-r <url>] [-a <ip address list>]<br>
 	-4/6 Get ipv4 or ipv6, if not set, intelligent support ipv6;<br>
 	-p Generate random IP addresses number for ping test;<br>
-	-p Generate random IP addresses number for ping test;<br>
 	-d Set the number of IP addresses for the download test;<br>
 	-f Set the fastest number of IP addresses returned;<br>
 	-c Set the post execution command, Internal variable {{FAST_V4_IPS}} & {{FAST_V6_IPS}} can be used;<br>
@@ -15,4 +14,4 @@ Usage:<br>
 	-r Set url to test download speed;<br>
 	-h Print help.<br>
 <br>
-./cf-ip.sh -p 200 -d 10 -f 1 -c 'echo "update this ipv4: {{FAST_V4_IPS}} ipv6: {{FAST_V6_IPS}} to ddns."'<br>
+./cf-ip.sh -p 200 -d 10 -f 1 -r 'https://cdn.yourdomain.com/download/xxx.zip' -c 'echo "update this ipv4: {{FAST_V4_IPS}} ipv6: {{FAST_V6_IPS}} to ddns."'<br>
