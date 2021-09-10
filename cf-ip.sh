@@ -1,6 +1,7 @@
 #! /bin/sh
 #####################################################################
-# Copyright (C) 2020 Jinhill
+# Copyright (C) 2021 Jinhill
+# https://github.com/jinhill/fast-cf-ip
 # This file is free software; as a special exception the author gives
 # unlimited permission to copy and/or distribute it, with or without
 # modifications, as long as this notice is preserved.
@@ -10,6 +11,7 @@ USER_AGENT='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 alias _CURL='curl -s -H "user-agent: $USER_AGENT" -H "accept: text/html;*/*"'
 #SPEED_TEST_URL="https://cdn.yourdomain.com/download/100mb.zip"
 SPEED_TEST_URL="https://speed.cloudflare.com/__down?bytes=100000000"
+ANYCAST_SPEED_LOG=$(dirname "$0")/anycast_speed.log
 CF_IPV4_URL="https://www.cloudflare.com/ips-v4"
 CF_IPV6_URL="https://www.cloudflare.com/ips-v6"
 CF_IPV6_RANGE="2606:4700::/96 2606:4700:3031::/96 2606:4700:3032::/96 2606:4700:3033::/96"
@@ -226,9 +228,8 @@ _gen_cf_ips(){
 	sub_c=$(( c/ip_r_c + 1))
 	for item in $ip_range;do
 		ips=$(_subnet $item $sub_c)
-		rand_ip=$(printf "%s\n%s\n" ${rand_ip} ${ips})
+		printf "%s\n" ${ips}
 	done
-	echo "$rand_ip"
 }
 
 #$1:ip count
@@ -239,9 +240,8 @@ _gen_cf_ipv6s(){
 	sub_c=$(( (c / range_c) + 1))
 	for item in $CF_IPV6_RANGE;do
 		ips=$(_subnet_v6 $item $sub_c)
-		rand_ip=$(printf "%s\n%s\n" ${rand_ip} ${ips})
+		printf "%s\n" ${ips}
 	done
-	echo "$rand_ip"
 }
 #$1:ip
 _get_ping_time(){
@@ -311,6 +311,22 @@ _fmt_speed(){
 	done
 	echo "$data" | sed -e "s/^[ ]*//"
 }
+#$1:4-ipv4,6-ipv6,else ipv4 & ipv6
+_get_history_anycast_ips(){
+	if [ ! -f "$ANYCAST_SPEED_LOG" ];then
+		return 1
+	fi
+	sed -i "s/\r//g" "$ANYCAST_SPEED_LOG"
+	case "$1" in
+   		4 ) grep -ioE "[0-9.]{7,}$" "$ANYCAST_SPEED_LOG"
+   				;;
+   		6 ) grep -ioE "[a-fA-F0-9:]{7,}$" "$ANYCAST_SPEED_LOG"
+   				;;
+   		* ) grep -ioE "[a-fA-F0-9:.]{7,}$" "$ANYCAST_SPEED_LOG"
+   				;;
+  esac
+}
+
 #$1:ip v4/6
 #$2:gen cf ip count
 #$3:get N ping fast ip for test speed
@@ -334,7 +350,13 @@ _get_fast_ip(){
 		_log "Generate random cloudflare error, please check the network.\n"
 		return 1
 	fi
-
+	anycast_speed_ips=$(_get_history_anycast_ips $ip_type)
+	if [ -n "$anycast_speed_ips" ];then
+		asi_c=$(echo "$anycast_speed_ips" | wc -l)
+		ping_c=$((ping_c + asi_c))
+		ips_t=$(printf "%s\n%s\n" "$ips_t" "$anycast_speed_ips")
+		_log "Add %d ips from the history to test ping.\n" $asi_c
+	fi
 	_log "Ping testing these %d ips...\n" $ping_c
 	res_ping=$(_ping_test "$ips_t")
 	if [ -z "$res_ping" -o "$res_ping" = " " ];then
@@ -345,7 +367,7 @@ _get_fast_ip(){
 
 	_log "The fastest ip of ping test:\n[%s]\n" "$fast"
 	ips=$(_get_res_ip "$fast")
-
+	
 	_log "Download speed testing these %d ips...\n" $dl_c
 	res_speed=$(_speed_test "$ips" "$5")
 	if [ -z "$res_speed" ];then
@@ -360,6 +382,7 @@ _get_fast_ip(){
 	else
 		echo -n "$fast"
 	fi
+	echo "$fast" >> "$ANYCAST_SPEED_LOG"
 }
 
 #$1:url,$2:type 0-dns server,1-ip,$3:ip/dns server
