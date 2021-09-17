@@ -28,10 +28,6 @@ _log(){
 	printf "$@" 1>&2
 }
 
-_log_f(){
-	printf "$@" >> /var/log/cf-ip.log
-}
-
 #$1:string,$2:char,$ret:count
 _count() {
   echo "$1" | awk -F"$2" '{print NF-1}'
@@ -39,6 +35,7 @@ _count() {
 
 #$1:dommain,$2:dns server
 _get_dns(){
+	resolve_ips=""
 	#need dnsutils
 	resolve_cmd=nslookup
 	head_line=3
@@ -49,7 +46,12 @@ _get_dns(){
 			head_line=1;
 		fi
 	fi
-	$resolve_cmd "$@" | tail -n +$head_line | grep -ioE '[a-fA-F0-9:.]{7,}$'
+	if [ -n "$2" ];then
+		resolve_ips=$($resolve_cmd "$@")
+	else
+		resolve_ips=$($resolve_cmd "$1")
+	fi
+	echo "$resolve_ips" | tail -n +$head_line | grep -ioE '[a-fA-F0-9:.]{7,}$'
 }
 
 hex2dec(){
@@ -340,14 +342,14 @@ _get_fast_ip(){
 	fast_c=$4
 	ret_type=$5
 	[ -n "$6" ] || ret_type=0
-	_log "Generate random cloudflare %d ips...\n" $ping_c
+	_log "Randomly generate %d Cloudflare ipv${ip_type} addresses...\n" $ping_c
 	if [ $ip_type -eq 4 ];then
 		ips_t=$(_gen_cf_ips $ping_c)
 	else
 		ips_t=$(_gen_cf_ipv6s $ping_c)
 	fi
 	if [ -z "$ips_t" ];then
-		_log "Generate random cloudflare error, please check the network.\n"
+		_log "Generate ip addresses error, please check the network.\n"
 		return 1
 	fi
 	anycast_speed_ips=$(_get_history_anycast_ips $ip_type)
@@ -385,19 +387,23 @@ _get_fast_ip(){
 	echo "$fast" >> "$ANYCAST_SPEED_LOG"
 }
 
-#$1:url,$2:type 0-dns server,1-ip,$3:ip/dns server
+#$1:url,$2:ip/host list,$3:dns server
 _test_current_speed(){
 	url=$1
-	ips="$3"
-	if [ "$2" != "1" ];then
+	ips=""
+	if [ -n "$2" ];then
+		for item in $2; do
+			i_ip=$(echo "$item" | grep -ioE "[a-fA-F0-9:.]{7,}$")
+			if [ -z "$i_ip" ]; then
+				i_ip=$(_get_dns "$item" "$3")
+			fi
+			ips=$(printf "%s\n%s" "$ips" "$i_ip")
+		done
+	else
 		host=$(echo "${url}" | awk -F'[/:]' '{print $4}')
-		if [ -z "$3" ];then
-			ips=$(_get_dns "$host")
-		else
-			ips=$(_get_dns "$host" "$3")
-		fi
+		ips=$(_get_dns "$host" "$3")
 	fi
-	_log "test download use these ips:\n$ips"
+	_log "test download use these ips:\n$ips\n"
 	st=$(_speed_test "$ips" "$1")
 }
 
@@ -414,15 +420,15 @@ help()
 {
    printf "Usage:\n"
    printf "$0 [-4/6] [-p <num>] [-d <num>] [-f <num>] [-c <command>]\n"
-   printf "$0 [-t] [-n <dns server>] [-r <url>] [-a <ip address list>]\n"
+   printf "$0 [-t] [-n <dns server>] [-r <url>] [-a <ip address/masquerade host list>]\n"
    printf "\t-4/6 Get ipv4 or ipv6;\n"
-   printf "\t-p Generate random IP addresses number for ping test;\n"
-   printf "\t-d Set the number of IP addresses for the download test;\n"
-   printf "\t-f Set the fastest number of IP addresses returned;\n"
+   printf "\t-p Generate random ip addresses number for ping test;\n"
+   printf "\t-d Set the number of ip addresses for the download test;\n"
+   printf "\t-f Set the fastest number of ip addresses returned;\n"
    printf "\t-c Set the post execution command, Internal variable {{FAST_V4_IPS}} & {{FAST_V6_IPS}} can be used;\n"
-   printf "\t-t Test current IP speed;\n"
+   printf "\t-t Test current ip speed;\n"
    printf "\t-n Set dns server for test download speed;\n"
-   printf "\t-a Set dns resolution ip address list for the host of url;\n"
+   printf "\t-a Set dns resolution ip addresses or masquerade host name list for the host of url;\n"
    printf "\t-r Set url to test download speed;\n"
    printf "\t-h Print help.\n"
    exit 1 # Exit script after printing help
@@ -433,7 +439,7 @@ do
    case "$opt" in
    		4 ) ip_type=4 ;;
    		6 ) ip_type=6 ;;
-   		a ) ip="$OPTARG" ;;
+   		a ) ip_host="$OPTARG" ;;
    		c ) post_cmd="$OPTARG" ;;
       d ) dl_c="$OPTARG" ;;
       f ) fast_c="$OPTARG" ;;
@@ -451,10 +457,10 @@ done
 [ -n "$url" ] || url=$SPEED_TEST_URL
 
 if [ "$tcs" = 1 ];then
-	if [ -n "$ip" ];then
-		_test_current_speed "$url" 1 "$ip"
+	if [ -n "$ip_host" ];then
+		_test_current_speed "$url" "$ip_host" "$dns"
 	else
-		_test_current_speed "$url" 0 "$dns"
+		_test_current_speed "$url" "" "$dns"
 	fi
 	exit
 fi
