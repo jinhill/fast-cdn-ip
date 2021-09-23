@@ -70,9 +70,4 @@ if [ -n "$ipv6" ];then
 	     --data '{"type":"AAAA","name":"fast6.yourdomain.com","content":"${ipv6}","ttl":120,"proxied":false}'
 fi
 ```
-./cf-ip.sh \</br>
-	-p 200 \</br>
-	-d 10 \</br>
-	-f 1 \</br>
-	-r 'https://cdn.yourdomain.com/download/xxx.zip' \</br>
-	-s '/path/to/update_cf_dns.sh "{{FAST_V4_IPS}}" "{{FAST_V6_IPS}}"'
+`./cf-ip.sh -p 200 -d 10 -f 1 -r 'https://cdn.yourdomain.com/download/xxx.zip' -s '/path/to/update_cf_dns.sh "{{FAST_V4_IPS}}" "{{FAST_V6_IPS}}"'`
