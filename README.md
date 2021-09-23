@@ -7,20 +7,22 @@ This script helps you get the fastest cf ip.</br>
 3) This script can also execute custom programs for you, so that you can update your DNS records after obtaining the optimal IP.</br>
 </br>
 #Usage:</br>
-./cf-ip.sh [-4/6] [-p <num>] [-d <num>] [-f <num>] [-c] [-v] [-s <shell/command>]</br>
-./cf-ip.sh [-t] [-n <dns server>] [-r <url>] [-a <ip address/masquerade host list>]</br>
-    -4/6 Get ipv4 or ipv6;</br>
-    -a Set dns resolution ip addresses or real host name list for the host of url;</br>
-    -c Compare the fastest speed with the existing ip speed;</br>
-    -d Set the number of ip addresses for the download test;</br>
-    -f Set the fastest number of ip addresses returned;</br>
-    -n Set dns server for test download speed;</br>
-    -p Generate random ip addresses number for ping test;</br>
-    -r Set url to test download speed;</br>
-    -s Set the post execution shell or command, internal variable {{FAST_V4_IPS}} & {{FAST_V6_IPS}} can be used;</br>
-    -t Test current ip speed;</br>
-    -v Version of this script;</br>
-    -h Print help.</br>
+```
+./cf-ip.sh [-4/6] [-p <num>] [-d <num>] [-f <num>] [-c] [-v] [-s <shell/command>]
+./cf-ip.sh [-t] [-n <dns server>] [-r <url>] [-a <ip address/masquerade host list>]
+    -4/6 Get ipv4 or ipv6;
+    -a Set dns resolution ip addresses or real host name list for the host of url;
+    -c Compare the fastest speed with the existing ip speed;
+    -d Set the number of ip addresses for the download test;
+    -f Set the fastest number of ip addresses returned;
+    -n Set dns server for test download speed;
+    -p Generate random ip addresses number for ping test;
+    -r Set url to test download speed;
+    -s Set the post execution shell or command, internal variable {{FAST_V4_IPS}} & {{FAST_V6_IPS}} can be used;
+    -t Test current ip speed;
+    -v Version of this script;
+    -h Print help.
+```
 </br>
 
 #sample1:update_dns.sh
