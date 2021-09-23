@@ -432,7 +432,7 @@ _compare_current(){
 help()
 {
    printf "cf-ip.sh ver:%s\nUsage:\n" "$VERSION"
-   printf "$0 [-4/6] [-p <num>] [-d <num>] [-f <num>] [-e] [-v] [-s <shell/command>]\n"
+   printf "$0 [-4/6] [-p <num>] [-d <num>] [-f <num>] [-c] [-v] [-s <shell/command>]\n"
    printf "$0 [-t] [-n <dns server>] [-r <url>] [-a <ip address/masquerade host list>]\n"
    printf "\t-4/6 Get ipv4 or ipv6;\n"
    printf "\t-a Set dns resolution ip addresses or real host name list for the host of url;\n"

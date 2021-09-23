@@ -7,7 +7,7 @@ This script helps you get the fastest cf ip.</br>
 3) This script can also execute custom programs for you, so that you can update your DNS records after obtaining the optimal IP.</br>
 </br>
 #Usage:</br>
-./cf-ip.sh [-4/6] [-p <num>] [-d <num>] [-f <num>] [-e] [-v] [-s <shell/command>]</br>
+./cf-ip.sh [-4/6] [-p <num>] [-d <num>] [-f <num>] [-c] [-v] [-s <shell/command>]</br>
 ./cf-ip.sh [-t] [-n <dns server>] [-r <url>] [-a <ip address/masquerade host list>]</br>
     -4/6 Get ipv4 or ipv6;</br>
     -a Set dns resolution ip addresses or real host name list for the host of url;</br>
@@ -41,7 +41,7 @@ fi
 #After the update, do some restart services as needed.
 #systemctl restart your-service
 ```
-`./cf-ip.sh -p 200 -d 10 -f 2 -r 'https://cdn.yourdomain.com/download/xxx.zip' -s '/path/to/update_dns.sh "{{FAST_V4_IPS}}" "{{FAST_V6_IPS}}"'`</br>
+`./cf-ip.sh -p 200 -d 10 -f 2 -r 'https://cdn.yourdomain.com/download/xxx.zip' -c -a 'fast.cloudflare.lan fast6.cloudflare.lan' -s '/path/to/update_dns.sh "{{FAST_V4_IPS}}" "{{FAST_V6_IPS}}"'`</br>
 Replace parameters of -r and -s with your own before running. Then you can use 'fast.cloudflare.lan' or 'fast6.cloudflare.lan' in your app, but it has to be used in the intranet. You can also use scripts to update dns on Cloudflare, Aliyun, etc.</br>
 </br>
 #sample2:update_cf_dns.sh
@@ -70,9 +70,4 @@ if [ -n "$ipv6" ];then
 	     --data '{"type":"AAAA","name":"fast6.yourdomain.com","content":"${ipv6}","ttl":120,"proxied":false}'
 fi
 ```
-./cf-ip.sh \</br>
-	-p 200 \</br>
-	-d 10 \</br>
-	-f 1 \</br>
-	-r 'https://cdn.yourdomain.com/download/xxx.zip' \</br>
-	-s '/path/to/update_cf_dns.sh "{{FAST_V4_IPS}}" "{{FAST_V6_IPS}}"'
+`./cf-ip.sh -p 200 -d 10 -f 1 -r 'https://cdn.yourdomain.com/download/xxx.zip' -c -a 'fast.yourdomain.com fast6.yourdomain.com' -s '/path/to/update_cf_dns.sh "{{FAST_V4_IPS}}" "{{FAST_V6_IPS}}"'`
