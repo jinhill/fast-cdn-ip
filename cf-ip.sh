@@ -346,7 +346,13 @@ _get_history_anycast_ips(){
    				;;
   esac
 }
-
+#$1:fast ip with speed
+_add_anycast_log(){
+	ips=$(_get_res_ip "$fast")
+	ips_e=$(echo "$ips" | sed -e ':a; ;$!ba;s/ /\\|/g')
+	sed -i "/${ips_e}/d" "$ANYCAST_SPEED_LOG"
+	echo "$fast" >> "$ANYCAST_SPEED_LOG"
+}
 #$1:ip v4/6
 #$2:gen cf ip count
 #$3:get N ping fast ip for test speed
@@ -402,7 +408,7 @@ _get_fast_ip(){
 	else
 		echo "$fast"
 	fi
-	echo "$fast" >> "$ANYCAST_SPEED_LOG"
+	_add_anycast_log "$fast"
 }
 
 #$1:url,$2:ip/host list,$3:dns server
