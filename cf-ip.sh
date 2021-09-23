@@ -6,19 +6,23 @@
 # unlimited permission to copy and/or distribute it, with or without
 # modifications, as long as this notice is preserved.
 #####################################################################
-VERSION="1.2.0"
+VERSION="1.2.1"
 USER_AGENT='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36'
 alias _CURL='curl -s -H "user-agent: $USER_AGENT" -H "accept: text/html;*/*"'
 #SPEED_TEST_URL="https://cdn.yourdomain.com/download/100mb.zip"
-SPEED_TEST_URL="https://speed.cloudflare.com/__down?bytes=100000000"
+SPEED_TEST_URL="https://tca.smokeset.net/dl/100mb.zip"
 ANYCAST_SPEED_LOG=$(dirname "$0")/anycast_speed.log
 CF_IPV4_URL="https://www.cloudflare.com/ips-v4"
 #CF_IPV6_URL="https://www.cloudflare.com/ips-v6"
 CF_IPV6_RANGE="2606:4700::/96 2606:4700:3031::/96 2606:4700:3032::/96 2606:4700:3033::/96"
 IPV6_TEST_URL="https://ipv6-test.com"
-DEFAULT_PING_COUNT=100
-DEFAULT_DL_SPEED_COUNT=6
-DEFAULT_FAST_COUNT=1
+DEFAULT_PING_COUNT=200
+DEFAULT_DL_SPEED_COUNT=10
+DEFAULT_FAST_COUNT=2
+DEFAULT_DNS=""
+DEFAULT_HOST="cdn.smoekset.net cdn6.smokeset.net"
+DEFAULT_CMP_EXIST=1
+DEFAULT_POST_CMD='/opt/sh/geos_dns.sh -bu "{{FAST_V4_IPS}}" "{{FAST_V6_IPS}}"'
 _debug(){
 	echo "$@" 1>&2
 }
@@ -26,7 +30,12 @@ _debug(){
 _log(){
 	printf "$@" 1>&2
 }
-
+#$1:key,$2:value,$3:file
+_reconfig(){
+	k="$1"
+	v=$(echo "$2" | sed 's/\//\\\//g')
+	sed -i "/^$k=/s/=.*/=$v/" "$3"
+}
 #$1:string,$2:char, if $2 not set return array len,$ret:count
 _count() {
 	if [ -n "$2" ];then
@@ -416,8 +425,8 @@ _test_current_speed(){
 	st=$(_speed_test "$ips" "$1")
 }
 
-_compare_current(){
-	[ "$cmp_cur" = "1" ] || return
+_cmp_exist_host(){
+	[ "$cmp_exist" = "1" ] || return
 	cs=$(_test_current_speed "$url" "$ip_host" "$dns")
 	cs_4=$(echo "$cs" | grep -oE ".*,[0-9.]{7,}$")
 	cs_6=$(echo "$cs" | grep -oE ".*,[a-fA-F0-9:]{7,}$")
@@ -433,7 +442,8 @@ help()
 {
    printf "cf-ip.sh ver:%s\nUsage:\n" "$VERSION"
    printf "$0 [-4/6] [-p <num>] [-d <num>] [-f <num>] [-c] [-v] [-s <shell/command>]\n"
-   printf "$0 [-t] [-n <dns server>] [-r <url>] [-a <ip address/masquerade host list>]\n"
+   printf "$0 -t [-n <dns server>] [-r <url>] [-a <ip address/real host list>]\n"
+   printf "$0 --config [-c] [-p <num>] [-d <num>] [-f <num>] [-n <dns server>] [-r <url>] [-a <ip address/real host list>] [-s <shell/command>]\n"
    printf "\t-4/6 Get ipv4 or ipv6;\n"
    printf "\t-a Set dns resolution ip addresses or real host name list for the host of url;\n"
    printf "\t-c Compare the fastest speed with the existing ip speed;\n"
@@ -445,35 +455,56 @@ help()
    printf "\t-s Set the post execution shell or command, internal variable {{FAST_V4_IPS}} & {{FAST_V6_IPS}} can be used;\n"
    printf "\t-t Test current ip speed;\n"
    printf "\t-v Version of this script;\n"
+   printf "\t--config Set default parameters and persist;\n"
    printf "\t-h Print help.\n"
    exit 1
 }
 #main
-while getopts "a:c:d:f:n:p:r:s:46htv" opt
+while getopts "a:d:f:n:p:r:s:-:46chtv" opt
 do
-   case "$opt" in
-   		4 ) ip_type=4 ;;
-   		6 ) ip_type=6 ;;
-   		a ) ip_host="$OPTARG" ;;
-   		c ) cmp_cur=1 ;;
-      d ) dl_c="$OPTARG" ;;
-      f ) fast_c="$OPTARG" ;;
-      n ) dns="$OPTARG" ;;
-      p ) ping_c="$OPTARG" ;;
-      r ) url="$OPTARG" ;;
-      s ) post_cmd="$OPTARG" ;;
-      t ) tcs=1 ;;
-      v ) echo "$VERSION";exit ;;
-      h | ? ) help ;;
-   esac
+	case "$opt" in
+		4 | 6 ) ip_type=${opt} ;;
+		a ) ip_host="$OPTARG" ;;
+		c ) cmp_exist=1 ;;
+		d ) dl_c="$OPTARG" ;;
+		f ) fast_c="$OPTARG" ;;
+		n ) dns="$OPTARG" ;;
+		p ) ping_c="$OPTARG" ;;
+		r ) url="$OPTARG" ;;
+		s ) post_cmd="$OPTARG" ;;
+		t ) tcs=1 ;;
+		v ) echo "$VERSION";exit ;;
+		- ) case "${OPTARG}" in
+					config )
+						re_conf=1
+					;;
+					*)
+						_log "Unknown option --%s\n" "${OPTARG}"
+						help
+					;;
+				esac ;;
+		h | ? ) help ;;
+	esac
 done
-
-[ -n "$ping_c" ] || ping_c=$DEFAULT_PING_COUNT
-[ -n "$dl_c" ] || dl_c=$DEFAULT_DL_SPEED_COUNT
-[ -n "$fast_c" ] || fast_c=$DEFAULT_FAST_COUNT
-[ -n "$url" ] || url=$SPEED_TEST_URL
-
-if [ "$tcs" = 1 ];then
+cmp_exist=${cmp_exist:-${DEFAULT_CMP_EXIST}}
+dl_c=${dl_c:-${DEFAULT_DL_SPEED_COUNT}}
+dns=${dns:-${DEFAULT_DNS}}
+fast_c=${fast_c:-${DEFAULT_FAST_COUNT}}
+ip_host=${ip_host:-${DEFAULT_HOST}}
+ping_c=${ping_c:-${DEFAULT_PING_COUNT}}
+post_cmd=${post_cmd:-${DEFAULT_POST_CMD}}
+url=${url:-${SPEED_TEST_URL}}
+if [ "$re_conf" = "1" ];then
+	[ -z "$cmp_exist" ] || _reconfig "DEFAULT_CMP_EXIST" "${cmp_exist}" "$0"
+	[ -z "$dl_c" ] || _reconfig "DEFAULT_DL_SPEED_COUNT" "${dl_c}" "$0"
+	[ -z "$dns" ] || _reconfig "DEFAULT_DNS" "\"${dns}\"" "$0"
+	[ -z "$fast_c" ] || _reconfig "DEFAULT_FAST_COUNT" "${fast_c}" "$0"
+	[ -z "$ip_host" ] || _reconfig "DEFAULT_HOST" "\"${ip_host}\"" "$0"
+	[ -z "$ping_c" ] || _reconfig "DEFAULT_PING_COUNT" "${ping_c}" "$0"
+	[ -z "$post_cmd" ] || _reconfig "DEFAULT_POST_CMD" "'${post_cmd}'" "$0"
+	[ -z "$url" ] || _reconfig "SPEED_TEST_URL" "\"${url}\"" "$0"
+	exit
+elif [ "$tcs" = 1 ];then
 	if [ -n "$ip_host" ];then
 		_test_current_speed "$url" "$ip_host" "$dns"
 	else
@@ -497,7 +528,7 @@ else
 	fi
 fi
 
-_compare_current
+_cmp_exist_host
 
 echo "fast ipv4:[$(_fmt_speed "$fast_data_4")]"
 echo "fast ipv6:[$(_fmt_speed "$fast_data_6")]"
