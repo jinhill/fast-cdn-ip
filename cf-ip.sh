@@ -348,10 +348,10 @@ _get_history_anycast_ips(){
 }
 #$1:fast ip with speed
 _add_anycast_log(){
-	ips=$(_get_res_ip "$fast")
+	ips=$(_get_res_ip "$1")
 	ips_e=$(echo "$ips" | sed -e ':a; ;$!ba;s/ /\\|/g')
 	sed -i "/${ips_e}/d" "$ANYCAST_SPEED_LOG"
-	echo "$fast" >> "$ANYCAST_SPEED_LOG"
+	echo "$1" >> "$ANYCAST_SPEED_LOG"
 }
 #$1:ip v4/6
 #$2:gen cf ip count
