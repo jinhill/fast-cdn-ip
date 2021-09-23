@@ -6,20 +6,19 @@
 # unlimited permission to copy and/or distribute it, with or without
 # modifications, as long as this notice is preserved.
 #####################################################################
-
+VERSION="1.2.0"
 USER_AGENT='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36'
 alias _CURL='curl -s -H "user-agent: $USER_AGENT" -H "accept: text/html;*/*"'
 #SPEED_TEST_URL="https://cdn.yourdomain.com/download/100mb.zip"
 SPEED_TEST_URL="https://speed.cloudflare.com/__down?bytes=100000000"
 ANYCAST_SPEED_LOG=$(dirname "$0")/anycast_speed.log
 CF_IPV4_URL="https://www.cloudflare.com/ips-v4"
-CF_IPV6_URL="https://www.cloudflare.com/ips-v6"
+#CF_IPV6_URL="https://www.cloudflare.com/ips-v6"
 CF_IPV6_RANGE="2606:4700::/96 2606:4700:3031::/96 2606:4700:3032::/96 2606:4700:3033::/96"
 IPV6_TEST_URL="https://ipv6-test.com"
 DEFAULT_PING_COUNT=100
 DEFAULT_DL_SPEED_COUNT=6
-DEFAULT_FAST_COUNT=2
-DEFAULT_DNS=119.29.29.29
+DEFAULT_FAST_COUNT=1
 _debug(){
 	echo "$@" 1>&2
 }
@@ -28,9 +27,13 @@ _log(){
 	printf "$@" 1>&2
 }
 
-#$1:string,$2:char,$ret:count
+#$1:string,$2:char, if $2 not set return array len,$ret:count
 _count() {
-  echo "$1" | awk -F"$2" '{print NF-1}'
+	if [ -n "$2" ];then
+  	echo "$1" | awk -F"$2" '{print NF-1}'
+  else
+   echo "$1" | wc -w
+  fi
 }
 
 #$1:dommain,$2:dns server
@@ -54,6 +57,15 @@ _get_dns(){
 	echo "$resolve_ips" | tail -n +$head_line | grep -ioE '[a-fA-F0-9:.]{7,}$'
 }
 
+_test_ipv6(){
+	code=$(_CURL -6 -I --connect-timeout 5 -w '%{http_code}' -o /dev/null "$IPV6_TEST_URL")
+	if [ "$code" = "200" ];then
+		echo 1
+	else
+		echo 0
+	fi
+}
+
 hex2dec(){
 	[ "$1" != "" ] && printf "%d" "$(( 0x$1 ))"
 }
@@ -63,17 +75,17 @@ expand_ipv6() {
 	ip=$1
 
 	# prepend 0 if we start with :
-	echo $ip | grep -qs "^:" && ip="0${ip}"
+	echo "$ip" | grep -qs "^:" && ip="0${ip}"
 
 	# expand ::
-	if echo $ip | grep -qs "::"; then
-		colons=$(echo $ip | sed 's/[^:]//g')
+	if echo "$ip" | grep -qs "::" ; then
+		colons=$(echo "$ip" | sed 's/[^:]//g')
 		missing=$(echo ":::::::::" | sed "s/$colons//")
-		expanded=$(echo $missing | sed 's/:/:0/g')
-		ip=$(echo $ip | sed "s/::/$expanded/")
+		expanded=$(echo "$missing" | sed 's/:/:0/g')
+		ip=$(echo "$ip" | sed "s/::/$expanded/")
 	fi
 
-	blocks=$(echo $ip | grep -o "[0-9a-f]\+")
+	blocks=$(echo "$ip" | grep -o "[0-9a-f]\+")
 	set $blocks
 
 	printf "%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x\n" \
@@ -88,12 +100,12 @@ expand_ipv6() {
 }
 
 compress_ipv6() {
-	echo $1 | sed -e 's/\(:0\{1,4\}\)/:/g' -e 's/:\{3,\}/::/g'
+	echo "$1" | sed -e 's/\(:0\{1,4\}\)/:/g' -e 's/:\{3,\}/::/g'
 }
 
 #$1:char,$2:count
 padding(){
-	printf %.s$1 `seq $2`
+	printf "%.s$1" $(seq $2)
 }
 
 fmt_ipv6(){
@@ -119,7 +131,7 @@ _gen_rand_no_repeat(){
 	c=0
 	no_repeat_rand=""
 	r_len=$(($1*10))
-	r_data=$(cat /dev/urandom | tr -dc "0123456789" | head -c$r_len)
+	r_data=$(tr -dc "0123456789" < "/dev/urandom" | head -c$r_len)
 	r_pos=1
 	r_end=8
 	while [ $c -lt $1 ]; do
@@ -130,7 +142,7 @@ _gen_rand_no_repeat(){
 			r_pos=$((r_pos+8))
 			r_end=$((r_end+8))
 			if [ $r_end -ge $r_len ];then
-				r_data=$(cat /dev/urandom | tr -dc "0123456789" | head -c$r_len)
+				r_data=$(tr -dc "0123456789" < "/dev/urandom" | head -c$r_len)
 				r_pos=1
 				r_end=8
 			fi
@@ -146,17 +158,16 @@ _gen_rand_no_repeat(){
 }
 #$1:ip/mask,$2:ip count
 _subnet() {
-	local ip_range=$1
-	local ip_count=$2
-	local OLDIFS="$IFS"
-	local sub=$(echo "$ip_range" | cut -d '/' -f 1)
-	local sm=$(echo "$ip_range" | cut -d '/' -f 2)
-	local mask=$(( 1 << ( 32 - sm )))
+	ip_range=$1
+	ip_count=$2
+	OLDIFS="$IFS"
+	sub=$(echo "$ip_range" | cut -d '/' -f 1)
+	sm=$(echo "$ip_range" | cut -d '/' -f 2)
+	mask=$(( 1 << ( 32 - sm )))
 	IFS="."
 		set -- $sub
 		ips=$((0x$(printf "%02x%02x%02x%02x\n" $1 $2 $3 $4)))
 	IFS="$OLDIFS"
-	i=1;
 	rand=$(_gen_rand_no_repeat $ip_count 1 $mask)
 	for item in $rand;do
 	  val=$((ips|item))
@@ -184,13 +195,13 @@ _subnet_v6(){
 	ip_part=$(echo "$ip_full" | cut -b $pos-$part)
 	ip_part_hex=$(( 0x$ip_part ))
 	mask_part=$((prefix % 16))
-	max_mask=$((0xFFFF >> $mask_part));
-	min_mask=$((0xFFFF << (16 - $mask_part)));
+	max_mask=$((0xFFFF >> mask_part));
+	min_mask=$((0xFFFF << (16 - mask_part)));
 	max_part=$((ip_part_hex | max_mask))
 	min_part=$((ip_part_hex & min_mask))
 	padding_len=$(( (128 - part * 4 ) / 4))
 	r_len=$(( 40 * ip_c))
-	r_data=$(cat /dev/urandom | tr -dc "0123456789abcdef" | head -c$r_len)
+	r_data=$(tr -dc "0123456789abcdef" < "/dev/urandom" | head -c$r_len)
 	r_pos=0
 	r_end=0
 	c=0
@@ -202,7 +213,7 @@ _subnet_v6(){
 		r_pos=$((r_end + 1))
 		r_end=$((r_pos + padding_len -1))
 		if [ $r_end -ge $r_len ];then
-			r_data=$(cat /dev/urandom | tr -dc "0123456789abcdef" | head -c$r_len)
+			r_data=$(tr -dc "0123456789abcdef" < "/dev/urandom" | head -c$r_len)
 			r_pos=1
 			r_end=$padding_len
 		fi
@@ -218,7 +229,6 @@ _subnet_v6(){
 
 #$1:ip count
 _gen_cf_ips(){
-	rand_ip=""
 	c=$1
 	ip_range=$(_CURL "$CF_IPV4_URL")
 	if [ -z "$ip_range" ];then
@@ -229,20 +239,19 @@ _gen_cf_ips(){
 	ip_r_c=$(echo "$ip_range" | awk 'END{print NR}')
 	sub_c=$(( c/ip_r_c + 1))
 	for item in $ip_range;do
-		ips=$(_subnet $item $sub_c)
-		printf "%s\n" ${ips}
+		ips=$(_subnet "$item" $sub_c)
+		printf "%s\n" "${ips}"
 	done
 }
 
 #$1:ip count
 _gen_cf_ipv6s(){
 	c=$1
-	range_c=$(_count "$CF_IPV6_RANGE" " ")
-	range_c=$((range_c + 1))
+	range_c=$(_count "$CF_IPV6_RANGE")
 	sub_c=$(( (c / range_c) + 1))
 	for item in $CF_IPV6_RANGE;do
-		ips=$(_subnet_v6 $item $sub_c)
-		printf "%s\n" ${ips}
+		ips=$(_subnet_v6 "$item" $sub_c)
+		printf "%s\n" "${ips}"
 	done
 }
 #$1:ip
@@ -253,7 +262,7 @@ _get_ping_time(){
 		return 1
 	fi
 	pt=$(echo "$ping_resp" | tail -1 | awk '{print $4}' | cut -d '/' -f 2)
-	if [ -n "$pt" -a "$pt" != "0" ];then
+	if [ -n "$pt" ] && [ "$pt" != "0" ];then
 		echo "$pt,$1"
 	fi
 }
@@ -273,12 +282,12 @@ _ping_test(){
 
 #$1:domain,$2:ip,$3:download url
 _download_speed(){
-	dl_speed=$(_CURL --resolve $1:443:$2 -w %{speed_download} --connect-timeout 5 --max-time 5 -o /dev/null "$3")
-	if [ -n "$dl_speed" -a "$dl_speed" != "0" ];then
+	dl_speed=$(_CURL --resolve "$1":443:"$2" -w '%{speed_download}' --connect-timeout 5 --max-time 5 -o /dev/null "$3")
+	if [ -n "$dl_speed" ] && [ "$dl_speed" != "0" ];then
 		echo "$dl_speed,$2"
 		dl_speed=$(printf "%.0f" $dl_speed)
 		dl_speed=$(printf "%.0f" $((dl_speed/1024)) | sed ':a;s/\B[0-9]\{3\}\>/,&/;ta')
-		_log "%s: %s KB/s.\n" $2 $dl_speed
+		_log "%s: %s KB/s.\n" "$2" "$dl_speed"
 	fi
 }
 
@@ -286,7 +295,7 @@ _download_speed(){
 _speed_test(){
 	host=$(echo "$2" | awk -F'[/:]' '{print $4}')
 	for item in $1; do
-		_download_speed "$host" $item  "$2"
+		_download_speed "$host" "$item"  "$2"
 	done
 }
 
@@ -361,7 +370,7 @@ _get_fast_ip(){
 	fi
 	_log "Ping testing these %d ips...\n" $ping_c
 	res_ping=$(_ping_test "$ips_t")
-	if [ -z "$res_ping" -o "$res_ping" = " " ];then
+	if [ -z "$res_ping" ] || [ "$res_ping" = " " ];then
 		_log "Ping test eror.\n"
 		return 1
 	fi
@@ -380,9 +389,9 @@ _get_fast_ip(){
 	if [ "$ret_type" = "0" ];then
 		ips=$(_get_res_ip "$fast")
 		_log "Top %d fast ip:%s\n" $fast_c "$ips"
-		echo -n "$ips"
+		echo "$ips"
 	else
-		echo -n "$fast"
+		echo "$fast"
 	fi
 	echo "$fast" >> "$ANYCAST_SPEED_LOG"
 }
@@ -403,50 +412,58 @@ _test_current_speed(){
 		host=$(echo "${url}" | awk -F'[/:]' '{print $4}')
 		ips=$(_get_dns "$host" "$3")
 	fi
-	_log "test download use these ips:\n$ips\n"
+	_log "Test download use these ips:\n$ips\n"
 	st=$(_speed_test "$ips" "$1")
 }
 
-_test_ipv6(){
-	code=$(_CURL -6 -I --connect-timeout 5 -w %{http_code} -o /dev/null "$IPV6_TEST_URL")
-	if [ "$code" = "200" ];then
-		echo 1
-	else
-		echo 0
-	fi
+_compare_current(){
+	[ "$cmp_cur" = "1" ] || return
+	cs=$(_test_current_speed "$url" "$ip_host" "$dns")
+	cs_4=$(echo "$cs" | grep -oE ".*,[0-9.]{7,}$")
+	cs_6=$(echo "$cs" | grep -oE ".*,[a-fA-F0-9:]{7,}$")
+
+	fast_res_4=$(printf "%s\n%s" "$fast_data_4" "$cs_4")
+	fast_data_4=$(echo "$fast_res_4" | sort -n -r | head -$fast_c)
+	
+	fast_res_6=$(printf "%s\n%s" "$fast_data_6" "$cs_6")
+	fast_data_6=$(echo "$fast_res_6" | sort -n -r | head -$fast_c)
 }
 
 help()
 {
-   printf "Usage:\n"
-   printf "$0 [-4/6] [-p <num>] [-d <num>] [-f <num>] [-c <command>]\n"
+   printf "cf-ip.sh ver:%s\nUsage:\n" "$VERSION"
+   printf "$0 [-4/6] [-p <num>] [-d <num>] [-f <num>] [-e] [-v] [-s <shell/command>]\n"
    printf "$0 [-t] [-n <dns server>] [-r <url>] [-a <ip address/masquerade host list>]\n"
    printf "\t-4/6 Get ipv4 or ipv6;\n"
-   printf "\t-p Generate random ip addresses number for ping test;\n"
+   printf "\t-a Set dns resolution ip addresses or real host name list for the host of url;\n"
+   printf "\t-c Compare the fastest speed with the existing ip speed;\n"
    printf "\t-d Set the number of ip addresses for the download test;\n"
    printf "\t-f Set the fastest number of ip addresses returned;\n"
-   printf "\t-c Set the post execution command, Internal variable {{FAST_V4_IPS}} & {{FAST_V6_IPS}} can be used;\n"
-   printf "\t-t Test current ip speed;\n"
    printf "\t-n Set dns server for test download speed;\n"
-   printf "\t-a Set dns resolution ip addresses or masquerade host name list for the host of url;\n"
+   printf "\t-p Generate random ip addresses number for ping test;\n"
    printf "\t-r Set url to test download speed;\n"
+   printf "\t-s Set the post execution shell or command, internal variable {{FAST_V4_IPS}} & {{FAST_V6_IPS}} can be used;\n"
+   printf "\t-t Test current ip speed;\n"
+   printf "\t-v Version of this script;\n"
    printf "\t-h Print help.\n"
-   exit 1 # Exit script after printing help
+   exit 1
 }
 #main
-while getopts "a:c:d:f:p:r:n:46th" opt
+while getopts "a:c:d:f:n:p:r:s:46htv" opt
 do
    case "$opt" in
    		4 ) ip_type=4 ;;
    		6 ) ip_type=6 ;;
    		a ) ip_host="$OPTARG" ;;
-   		c ) post_cmd="$OPTARG" ;;
+   		c ) cmp_cur=1 ;;
       d ) dl_c="$OPTARG" ;;
       f ) fast_c="$OPTARG" ;;
+      n ) dns="$OPTARG" ;;
       p ) ping_c="$OPTARG" ;;
       r ) url="$OPTARG" ;;
-      n ) dns="$OPTARG" ;;
+      s ) post_cmd="$OPTARG" ;;
       t ) tcs=1 ;;
+      v ) echo "$VERSION";exit ;;
       h | ? ) help ;;
    esac
 done
@@ -466,7 +483,7 @@ if [ "$tcs" = 1 ];then
 fi
 ipv6_enable=$(_test_ipv6)
 if [ -n "$ip_type" ];then
-	if [[ "$ip_type" = 6 ]] && [[ "$ipv6_enable" = "0" ]];then
+	if [ "$ip_type" = 6 ] && [ "$ipv6_enable" = "0" ];then
 		_log "IPv6 network test eror.\n"
 		exit 1
 	fi
@@ -479,6 +496,8 @@ else
 		fast_data_6=$(_get_fast_ip 6 "$ping_c" "$dl_c" "$fast_c" "$url" 1)
 	fi
 fi
+
+_compare_current
 
 echo "fast ipv4:[$(_fmt_speed "$fast_data_4")]"
 echo "fast ipv6:[$(_fmt_speed "$fast_data_6")]"
