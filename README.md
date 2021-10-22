@@ -46,14 +46,14 @@ ipv6="$2"
 if [ -n "$ipv4" ];then
 	#replace [ \n] to ','
 	ipv4_s=$(echo "$ipv4" | sed -e ':a; ;$!ba;s/ /,/g' -e ':a;N;$!ba;s/\n/,/g')
-	dnsmasq --host-record=fast.cloudflare.lan,"${ipv4_s}"
+	echo "host-record=fast.cloudflare.lan,${ipv4_s}" >>/tmp/dnsmasq.d/dns.conf
 fi
 if [ -n "$ipv6" ];then
 	ipv6_s=$(echo "$ipv6" | sed -e ':a; ;$!ba;s/ /,/g' -e ':a;N;$!ba;s/\n/,/g')
-	dnsmasq --host-record=fast6.cloudflare.lan,"${ipv6_s}"
+	echo "host-record=fast6.cloudflare.lan,${ipv6_s}" >>/tmp/dnsmasq.d/dns.conf
 fi
+/etc/init.d/dnsmasq restart
 #After the update, do some restart services as needed.
-#systemctl restart your-service
 ```
 `
 ./cf_ip.sh --config -c -p 200 -d 10 -f 2 -r 'https://cdn.yourdomain.com/download/xxx.zip' -c -a 'fast.cloudflare.lan fast6.cloudflare.lan' -s '/path/to/update_dns.sh "{{FAST_V4_IPS}}" "{{FAST_V6_IPS}}"'
