@@ -320,7 +320,7 @@ fmt_speed() {
   echo "${data}" | sed -e "s/^[ ]*//"
 }
 
-#$1:4-ipv4,6-ipv6,else ipv4 & ipv6
+#$1:4-ipv4,6-ipv6,else ipv4 & ipv6,$2:count
 get_history_ips() {
   if [ ! -f "${CF_SPEED_LOG}" ]; then
     return 1
@@ -328,15 +328,16 @@ get_history_ips() {
   sed -i "s/\r//g" "${CF_SPEED_LOG}"
   case "$1" in
   4)
-    grep -ioE "[0-9.]{7,}$" "${CF_SPEED_LOG}"
+    regex="[0-9.]{7,}$"
     ;;
   6)
-    grep -ioE "[a-f0-9:]{7,}$" "${CF_SPEED_LOG}"
+    regex="[a-f0-9:]{7,}$"
     ;;
   *)
-    grep -ioE "[a-f0-9:.]{7,}$" "${CF_SPEED_LOG}"
+    regex="[a-f0-9:.]{7,}$"
     ;;
   esac
+  sort -nr <"${CF_SPEED_LOG}" | grep -ioE "${regex}" | head -$2
 }
 
 #$1:fast ip with speed
@@ -392,7 +393,7 @@ get_fast_ip() {
     log 0 "Generate ip addresses error, please check the network."
     return 1
   fi
-  cf_speed_ips=$(get_history_ips ${ip_type})
+  cf_speed_ips=$(get_history_ips ${ip_type} 100)
   if [ -n "${cf_speed_ips}" ]; then
     asi_c=$(echo "${cf_speed_ips}" | wc -l)
     ping_cnt=$((ping_cnt + asi_c))
