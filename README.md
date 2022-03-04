@@ -7,6 +7,7 @@ This script helps you get the fastest cf ip.
 4) The more times this script is executed, the better the IP address can be obtained, but do not test too frequently, otherwise Cloudflare may prohibit you from using it.
 ## Usage:
 ```bash
+sh -c "$(curl -sSL https://git.io/JSSmn)" @ -h
 ./cf_ip.sh [-4/6] [-p <num>] [-d <num>] [-f <num>] [-c] [-v] [-s <shell/command>]
 ./cf_ip.sh -t [-n <dns server>] [-r <url>] [-a <ip address/real host list>]
 ./cf_ip.sh --config [-c] [-p <num>] [-d <num>] [-f <num>] [-n <dns server>] [-r <url>] [-a <ip address/real host list>] [-s <shell/command>]
