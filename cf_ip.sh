@@ -362,7 +362,7 @@ get_history_speed() {
   speed_log=$(grep -ioE "${regex}" "${CF_SPEED_LOG}")
   if [ -z "${n}" ]; then
     nl=$(echo "${speed_log}" | wc -l)
-    n=$((nl / 3))
+    n=$((nl * 3 / 5))
     [ "${n}" -lt 5 ] && n="${nl}"
   fi
   speed=$(echo "${speed_log}" | sort -nr | sed -n "${n}p" | cut -d ',' -f 1)
@@ -536,6 +536,7 @@ main() {
   ipv6_enable=$(test_ipv6)
   c=0
   t10_speed=0
+  fast_data_rec=""
   while [ $c -lt 3 ]; do
     if [ -n "${ip_type}" ]; then
       if [ "${ip_type}" = 6 ] && [ "${ipv6_enable}" = "0" ]; then
@@ -546,14 +547,17 @@ main() {
       export fast_data_${ip_type}="${fast_data}"
       fs=$(echo "${fast_data}" | sort -nr | head -1 | cut -d ',' -f 1)
       eval "t10_speed=\$h${ip_type}_t10_speed"
+      fast_data_rec=$(printf "%b\n%b" "${fast_data_rec}" "${fast_data}")
       if [ "${fs:-0}" -gt "${t10_speed:-0}" ]; then
         break
       fi
     else
       fast_data_4=$(get_fast_ip 4 "${ping_cnt}" "${dl_cnt}" "${fast_cnt}" "${url}" 1)
       fast_speed=$(fmt_speed "${fast_data_4}")
+      fast_data_rec=$(printf "%b\n%b" "${fast_data_rec}" "${fast_data_4}")
       if [ "${ipv6_enable}" = "1" ]; then
         fast_data_6=$(get_fast_ip 6 "${ping_cnt}" "${dl_cnt}" "${fast_cnt}" "${url}" 1)
+        fast_data_rec=$(printf "%b\n%b" "${fast_data_rec}" "${fast_data_6}")
       fi
       fs4=$(echo "${fast_data_4}" | sort -nr | head -1 | cut -d ',' -f 1)
       fs6=$(echo "${fast_data_6}" | sort -nr | head -1 | cut -d ',' -f 1)
@@ -570,8 +574,24 @@ main() {
     sleep 30
   done
   if [ $c -ge 3 ]; then
-    log 1 "We tried 3 times and still can't find the fastest IP. Please try again later."
-    exit
+    #If there is no qualified ip, replace it faster than the existing ip.
+    fdr_t4=$(echo "${fast_data_rec}" | grep -ioE "[0-9]*,[0-9.]{7,}$" | sort -nr | sed -n "1p")
+    fdr_t6=$(echo "${fast_data_rec}" | grep -ioE "[0-9]*,[a-f0-9:]{7,}$" | sort -nr | sed -n "1p")
+    fdrs_t4="${fdr_t4%,*}"
+    fdrs_t6="${fdr_t6%,*}"
+    skip=1
+    if [ "${fdrs_t4:-0}" -gt "${fast_cur_speed:-0}" ]; then
+      fast_data_4="${fdr_t4}"
+      skip=0
+    fi
+    if [ "${fdrs_t6:-0}" -gt "${fast_cur_speed:-0}" ]; then
+      fast_data_6="${fdr_t6}"
+      skip=0
+    fi
+    if [ "${skip}" = "1" ]; then
+      log 1 "We tried 3 times and still can't find the fastest IP. Please try again later."
+      exit
+    fi
   fi
   add_history_ips "${fast_data_4}"
   add_history_ips "${fast_data_6}"
